@@ -1,0 +1,67 @@
+import pandas as pd
+import numpy as np
+from numpy import log, exp, pi, sqrt
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import explained_variance_score
+
+df = pd.read_csv("pima-indians-diabetes.csv")
+def MLEClassifier(df):
+    # Randomly sample the dataset into Training and Testing
+    msk = np.random.rand(len(df)) < 0.5
+    Train, Test = df[msk], df[~msk]
+#     print(Test)
+    #Training
+    mean1 = np.mean(Train[Train.iloc[:,8]==0].iloc[:,2:5])
+    mean2 = np.mean(Train[Train.iloc[:,8]==1].iloc[:,2:5])
+    sigma = np.cov(Train[Train.iloc[:,8]==0].iloc[:,2:5].T)
+    if np.sum(np.linalg.eigvals(sigma) <= 0) != 0:
+        # if at least one eigenvalue is <= 0 show warning
+        print('Covariance matrix is not positive definite!')
+    sigma_inv = np.linalg.inv(sigma)
+    scalar = 1/np.sqrt(((2*pi)**3)*np.linalg.det(sigma))
+
+    prior1tmp = len(Train[Train.iloc[:,8]==0])
+    prior2tmp = len(Train[Train.iloc[:,8]==1])
+
+    prior1 = prior1tmp/(prior1tmp+prior2tmp)
+    prior2 = prior2tmp/(prior1tmp+prior2tmp)
+
+    #Testing
+    correct, wrong = 0,0
+
+    for i in range(0, len(Test)):
+        lklhood1 = scalar*exp((-1/2)*np.dot(np.matmul(Test.iloc[i,2:5]-mean1, sigma_inv), Test.iloc[i,2:5]-mean1))
+        lklhood2 = scalar*exp((-1/2)*np.dot(np.matmul(Test.iloc[i,2:5]-mean2, sigma_inv), Test.iloc[i,2:5]-mean2))
+        post1 = lklhood1*prior1
+        post2 = lklhood2*prior2
+        if(post1 > post2 and Test.iloc[i,8] == 0):
+            correct += 1
+        elif (post1 < post2 and Test.iloc[i,8] == 1):
+            correct += 1
+        else:
+            wrong += 1
+#     print(wrong)
+#     print("The accuracy is: ", correct/(correct + wrong)  )
+    return correct/(correct + wrong)
+res = []
+for i in range(0,15):
+    res.append(MLEClassifier(df))
+print("The average accuracy is: ", np.mean(res))
+print("The std of accuracy is: ", sqrt(np.var(res)))
+
+import statistics
+X = df.iloc[:,2:5]
+y = df.iloc[:,-1]
+for k in [1,5,11]:
+    # 15 trails for each k
+    res1 = []
+    for i in range(0, 10):
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
+        neigh = KNeighborsClassifier(n_neighbors=k).fit(X_train, y_train) 
+        y_pred = neigh.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        res1.append(acc)
+    print ('k =', k, ': ', "accuracy is: ", np.mean(res1))
+    print ('k =', k, ': ', "std of estimation is: ", np.std(res1))
